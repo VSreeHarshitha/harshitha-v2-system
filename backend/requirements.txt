@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+pydantic
+pydantic-ai
+langchain
+langchain-google-genai
+httpx
+python-jose[cryptography]
+python-dotenv
