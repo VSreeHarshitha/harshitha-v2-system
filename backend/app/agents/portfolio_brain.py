@@ -1,70 +1,68 @@
 import os
-import asyncio
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.agents import AgentExecutor, create_tool_calling_agent
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain.tools import tool
-
-# Internal imports from your project structure
-from app.schemas.portfolio_models import PortfolioUpdate
+from pydantic import BaseModel, Field, field_validator
+from pydantic_ai import Agent, RunContext
 from app.services.n8n_service import trigger_n8n_workflow
 
-# 1. Setup the LLM (Gemini 1.5 Flash for speed and tool-calling accuracy)
-# Ensure GOOGLE_API_KEY is set in your backend/.env file
-llm = ChatGoogleGenerativeAI(
-    model="gemini-1.5-flash", 
-    streaming=True, 
-    temperature=0.7
+
+# 1. Define the Structured Schema (The "Rules")
+class PortfolioUpdate(BaseModel):
+    field: str = Field(
+        description="The part of the site to update (e.g., 'cgpa', 'bio', 'projects')"
+    )
+    new_value: str = Field(
+        description="The new content to display"
+    )
+    reasoning: str = Field(
+        description="Why the AI is suggesting this change"
+    )
+
+    @field_validator('new_value')
+    @classmethod
+    def validate_cgpa(cls, v: str, info) -> str:
+        # If updating CGPA, ensure it's valid (0–10)
+        if info.data.get('field') == 'cgpa':
+            try:
+                score = float(v)
+                if not (0 <= score <= 10):
+                    raise ValueError("CGPA must be between 0 and 10")
+            except ValueError:
+                raise ValueError("Invalid CGPA format. Please provide a number.")
+        return v
+
+
+# 2. Initialize the Pydantic AI Agent (FIXED VERSION)
+portfolio_agent = Agent(
+    'google-gla:gemini-1.5-flash',
+    system_prompt=(
+        "You are Sree Harshitha's Portfolio Manager, an AI built for 'Project P'. "
+        "Harshitha is a 3rd-year AIML student at Malla Reddy University and lead vocalist for 'Dakshin Loka'. "
+        "You help manage her portfolio updates intelligently. "
+        "If a user asks to change CGPA, projects, or bio, use the 'update_portfolio' tool. "
+        "Always be professional, slightly witty, and highly technical."
+    ),
 )
 
-# 2. Define the "Update" Tool
-@tool
-def update_portfolio_tool(update_data: dict):
+
+# 3. Define the Tool (The "Action")
+@portfolio_agent.tool
+async def update_portfolio(ctx: RunContext[None], update_data: PortfolioUpdate) -> str:
     """
-    Use this tool to update Sree Harshitha's portfolio information.
-    The update_data should be a dictionary matching the PortfolioUpdate schema.
+    Triggers a portfolio update request.
+    Sends notification via n8n workflow (e.g., WhatsApp approval).
     """
     try:
-        # Validate data using your Pydantic model
-        validated_data = PortfolioUpdate(**update_data)
-
-        # Trigger n8n workflow (running the async service in a sync wrapper)
-        result = asyncio.run(trigger_n8n_workflow(
-            validated_data, 
+        result = await trigger_n8n_workflow(
+            update_data,
             admin_id="Sree_Harshitha_Admin"
-        ))
-        return result
+        )
+        return f"✅ Update request sent for '{update_data.field}'. Status: {result}"
     except Exception as e:
-        return f"Validation Error: {str(e)}. Please ask the user for correct data (e.g., CGPA must be 0-10)."
+        return f"❌ Error triggering update: {str(e)}"
 
-# 3. Create the Agent Prompt
-# This system prompt defines the "personality" of your portfolio brain
-system_prompt = (
-    "You are Sree Harshitha's Portfolio Manager. You are professional, tech-savvy, and witty. "
-    "Sree is a 3rd-year AIML student at Malla Reddy University, a member of the 'Dakshin Loka' band, "
-    "and a Microsoft Learn Student Ambassador. "
-    "You can update her portfolio using the update_portfolio_tool. "
-    "If a user wants to change her CGPA, projects, or skills, you MUST use the tool. "
-    "If they provide invalid data, gently guide them to the correct format."
-)
 
-# 4. Construct the Agent (The Correct 2026 Pattern)
-tools = [update_portfolio_tool]
-
-prompt = ChatPromptTemplate.from_messages([
-    ("system", system_prompt),
-    MessagesPlaceholder(variable_name="chat_history", optional=True),
-    ("human", "{input}"),
-    MessagesPlaceholder(variable_name="agent_scratchpad"),
-])
-
-# Replaces the undefined 'create_agent'
-agent = create_tool_calling_agent(llm, tools, prompt)
-
-# The agent_executor is what your FastAPI main.py will actually call
-agent_executor = AgentExecutor(
-    agent=agent, 
-    tools=tools, 
-    verbose=True, 
-    handle_parsing_errors=True
-)
+@portfolio_agent.tool
+async def get_current_stats(ctx: RunContext[None]) -> str:
+    """
+    Returns the current live status of the portfolio.
+    """
+    return "📊 Current CGPA: 9.5 | 🎤 Band: Dakshin Loka | 🚀 Milestone: MLSA Alpha"

@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react'; // Added useState here
 import { motion } from 'framer-motion';
+import ChatAgent from './components/ChatAgent';
 import { Music, Brain, Code, Sparkles, Mic2, Cpu } from 'lucide-react';
 
 // This is a reusable "Animated Card" component
@@ -15,6 +16,9 @@ const Card = ({ children, className, delay = 0 }) => (
 );
 
 export default function App() {
+  // --- NEW: This state tracks if the chat window is open ---
+  const [isChatOpen, setIsChatOpen] = useState(false);
+
   return (
     <div className="min-h-screen p-6 md:p-16 max-w-7xl mx-auto space-y-6">
       {/* 12-Column Grid System */}
@@ -72,17 +76,22 @@ export default function App() {
             </li>
           </ul>
         </Card>
-
       </div>
 
-      {/* The floating AI Agent Toggle */}
+      {/* --- UPDATED: Toggle button now opens/closes the chat --- */}
       <motion.button 
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
-        className="fixed bottom-10 right-10 w-16 h-16 bg-white text-black rounded-full flex items-center justify-center shadow-2xl z-50"
+        onClick={() => setIsChatOpen(!isChatOpen)}
+        className={`fixed bottom-10 right-10 w-16 h-16 rounded-full flex items-center justify-center shadow-2xl z-50 transition-colors duration-300 ${
+            isChatOpen ? 'bg-purple-600 text-white' : 'bg-white text-black'
+        }`}
       >
         <Brain size={28} />
       </motion.button>
+
+      {/* --- NEW: The Chat Window Component --- */}
+      <ChatAgent isOpen={isChatOpen} setIsOpen={setIsChatOpen} />
     </div>
   );
 }

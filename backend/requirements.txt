@@ -7,3 +7,4 @@ langchain-google-genai
 httpx
 python-jose[cryptography]
 python-dotenv
+supabase

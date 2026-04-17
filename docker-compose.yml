@@ -1,0 +1,49 @@
+services:
+  # --- The AI Brain (FastAPI + Pydantic AI) ---
+  backend:
+    build: ./backend
+    container_name: harshitha-v2-system-backend-1
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    # Forced Environment Injection to bypass .env mounting issues
+    environment:
+      - GEMINI_API_KEY=YOUR_ACTUAL_GEMINI_KEY_HERE
+      - N8N_WEBHOOK_URL=http://automation:5678/webhook/portfolio-update
+      - SUPABASE_URL=YOUR_SUPABASE_URL_HERE
+      - SUPABASE_SERVICE_ROLE_KEY=AIzaSyA9dli_PegaLyiW0j3QIS-vllkvGD6amSk
+    env_file:
+      - ./backend/.env
+    restart: always
+
+  # --- The Visual Face (React + Tailwind 4.0) ---
+  frontend:
+    build: ./frontend
+    container_name: harshitha-v2-system-frontend-1
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_BACKEND_URL=http://localhost:8000
+    depends_on:
+      - backend
+    restart: always
+
+  # --- The Automation Engine (n8n) ---
+  automation:
+    image: n8nio/n8n:latest
+    container_name: harshitha-v2-system-n8n-1
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8n_data:/home/node/.n8n
+    environment:
+      - N8N_HOST=localhost
+      - NODE_ENV=production
+    restart: always
+
+volumes:
+  n8n_data:
